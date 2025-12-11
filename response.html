@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 80%;
+            width: 320px;
+        }
+
+        .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 0 0 10px 0;
+        }
+
+        p {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            /* 줄바꿈 처리 */
+        }
+
+        .success {
+            color: #28a745;
+        }
+
+        .error {
+            color: #dc3545;
+        }
+
+        .warning {
+            color: #ffc107;
+        }
+
+        /* 타입별 아이콘 및 색상 설정 */
+        .type-success .icon {
+            color: #28a745;
+        }
+
+        .type-error .icon {
+            color: #dc3545;
+        }
+
+        .type-warning .icon {
+            color: #ffa000;
+        }
+
+        button {
+            margin-top: 30px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4a90e2;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body class="type-<?= type ?>">
+    <div class="card">
+        <div class="icon">
+            <? if (type === 'success') { ?>
+            ✅
+            <? } else if (type === 'error') { ?>
+            ⛔
+            <? } else { ?>
+            ⚠️
+            <? } ?>
+        </div>
+        <h1>
+            <?= title ?>
+        </h1>
+        <p>
+            <?= message ?>
+        </p>
+        <button onclick="window.close()">창 닫기</button>
+    </div>
+</body>
+
+</html>

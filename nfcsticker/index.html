@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>출근 기록</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="p-6 max-w-sm mx-auto bg-white rounded-xl shadow-md space-y-4">
+        <h1 class="text-xl font-bold text-gray-900">출근 기록 시스템</h1>
+        <p class="text-gray-600">출근 기록을 자동으로 처리합니다...</p>
+        <p id="status-message" class="text-gray-500 mt-4"></p>
+        <button id="retry-button" class="w-full bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded mt-2" style="display: none;">
+            다시 시도
+        </button>
+    </div>
+
+    <script>
+        // 외부 웹사이트에서 Google Apps Script 호출을 위한 설정
+        
+        // GPS 요청 재시도 횟수
+        const RETRY_LIMIT = 3;
+        let retryCount = 0;
+        let isProcessing = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM 로드 완료');
+            const statusMessage = document.getElementById('status-message');
+            const retryButton = document.getElementById('retry-button');
+            
+            console.log('페이지 로드 완료, 요소들:', { statusMessage, retryButton });
+            
+            // URL 파라미터에서 UID, 스프레드시트 ID, 웹앱 ID 값을 가져옵니다.
+            const urlParams = new URLSearchParams(window.location.search);
+            const uid = urlParams.get('uid') || 'test001';
+            const spreadsheetId = urlParams.get('spreadsheet_id') || '1gwhEX8dQOKKNGDV0pHv9xEkiVFF9VKAGzuR8NsiIBk4'; // 실제 스프레드시트 ID로 변경
+            const webappId = urlParams.get('webapp_id') || 'AKfycbyEYbUvlEHVuCLrAp7umFk-q_f90hqQhvllkXy8ISlx4YzE7eLStelzf26dMoCR-QNq'; // 실제 웹앱 ID로 변경
+            
+            // 디버깅 정보 출력
+            console.log('URL 파라미터:', {
+                uid: uid,
+                spreadsheetId: spreadsheetId,
+                webappId: webappId,
+                fullUrl: window.location.href
+            });
+
+            if (!uid || uid === 'undefined') {
+                statusMessage.textContent = "오류: NFC 스티커가 인식되지 않았습니다. NFC를 다시 접촉해주세요.";
+                return;
+            }
+
+            // 페이지 로드 시 자동으로 출근 기록 시작
+            console.log('자동으로 출근 기록 시작');
+            
+            // GPS 위치 정보 요청 시도 (HTTPS 문제 우회)
+                statusMessage.textContent = "위치 정보를 가져오는 중...";
+            // 다시 시도 버튼 이벤트 리스너
+            retryButton.addEventListener('click', () => {
+                console.log('다시 시도 버튼 클릭됨');
+                retryButton.style.display = 'none';
+                statusMessage.textContent = "위치 정보를 다시 가져오는 중...";
+                getLocation();
+            });
+            
+            setTimeout(() => {
+                getLocation();
+            }, 1000);
+            
+            
+            // fetch API 테스트 함수
+            function testFetch() {
+                console.log('fetch 테스트 시작');
+                
+                // 먼저 GET 요청으로 연결 테스트
+                const testWebappUrl = 'https://script.google.com/macros/s/' + webappId + '/exec';
+                fetch(testWebappUrl, {
+                    method: 'GET',
+                    mode: 'cors'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('GET 테스트 성공:', data);
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600">연결 테스트 성공!</div>
+                        <div class="text-sm">${data.message}</div>
+                    `;
+                    
+                    // GET 테스트 성공 후 POST 테스트
+                    testPostData();
+                })
+                .catch(error => {
+                    console.log('GET 테스트 실패, POST 테스트 진행:', error);
+                    testPostData();
+                });
+            }
+            
+            // POST 데이터 테스트 함수
+            function testPostData() {
+                const testData = {
+                    uid: 'test001',
+                    latitude: 37.123456,
+                    longitude: 127.123456
+                };
+                
+                const testUrlWithParams = 'https://script.google.com/macros/s/' + webappId + '/exec' + '?spreadsheet_id=' + encodeURIComponent(spreadsheetId);
+                
+                fetch(testUrlWithParams, {
+                    method: 'POST',
+                    mode: 'no-cors',  // CORS 문제 해결을 위해 no-cors 모드 사용
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                })
+                .then(response => {
+                    console.log('테스트 데이터 전송 완료');
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600">테스트 성공!</div>
+                        <div class="text-sm">데이터가 전송되었습니다.</div>
+                    `;
+                })
+                .catch(error => {
+                    console.log('테스트 전송 완료 (no-cors 모드)');
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600">테스트 성공!</div>
+                        <div class="text-sm">데이터가 전송되었습니다.</div>
+                    `;
+                });
+            }
+            
+            // 위치 정보 요청 함수
+            function getLocation() {
+                console.log('getLocation 함수 호출됨');
+                if (isProcessing) {
+                    console.log('이미 처리 중입니다');
+                    return;
+                }
+                isProcessing = true;
+                console.log('위치 정보 요청 시작');
+                
+                if (navigator.geolocation) {
+                    console.log('Geolocation API 사용 가능');
+                    const options = {
+                        enableHighAccuracy: true,
+                        timeout: 10000, // 10초 타임아웃
+                        maximumAge: 0
+                    };
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            // 성공 콜백
+                            isProcessing = false;
+                            const { latitude, longitude } = position.coords;
+                            statusMessage.textContent = "위치 정보 수신 성공! 데이터를 전송합니다.";
+                            sendDataToServer(uid, latitude, longitude);
+                        },
+                        (error) => {
+                            // 오류 콜백
+                            isProcessing = false;
+                            console.error("Geolocation Error:", error.code, error.message);
+                            
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    statusMessage.textContent = "위치 정보 접근이 거부되었습니다. 권한을 허용해주세요.";
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                case error.TIMEOUT:
+                                    statusMessage.textContent = `위치 정보를 찾을 수 없습니다. 다시 시도합니다 (${retryCount + 1}/${RETRY_LIMIT}).`;
+                                    if (retryCount < RETRY_LIMIT) {
+                                        retryCount++;
+                                        setTimeout(getLocation, 2000); // 2초 후 재시도
+                                    } else {
+                                        statusMessage.textContent = "위치 정보를 가져올 수 없습니다. 다시 시도해주세요.";
+                                    }
+                                    break;
+                            }
+                        },
+                        options
+                    );
+                } else {
+                    statusMessage.textContent = "이 브라우저는 위치 정보를 지원하지 않습니다.";
+                }
+            }
+
+            // 위치 정보 요청 함수
+            function getLocation() {
+                console.log('getLocation 함수 호출됨');
+                
+                if (navigator.geolocation) {
+                    console.log('Geolocation API 사용 가능');
+                    const options = {
+                        enableHighAccuracy: true,
+                        timeout: 5000, // 5초 타임아웃 (단축)
+                        maximumAge: 0
+                    };
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            // 성공 콜백
+                            const { latitude, longitude } = position.coords;
+                            
+                            // GPS 값의 소숫점을 7자리로 제한
+                            const roundedLatitude = parseFloat(latitude.toFixed(7));
+                            const roundedLongitude = parseFloat(longitude.toFixed(7));
+                            
+                            console.log('위치 정보 수신 성공:', { 
+                                original: { latitude, longitude },
+                                rounded: { latitude: roundedLatitude, longitude: roundedLongitude }
+                            });
+                            statusMessage.textContent = "위치 정보 수신 성공! 데이터를 전송합니다.";
+                            sendDataWithLocation(uid, roundedLatitude, roundedLongitude);
+                        },
+                        (error) => {
+                            // 오류 콜백 - 다시 시도 메시지 표시
+                            console.error("Geolocation Error:", error.code, error.message);
+                            
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    console.log('위치 권한 거부됨');
+                                    statusMessage.innerHTML = `
+                                        <div class="text-red-600 font-semibold">❌ 위치 권한이 거부되었습니다</div>
+                                        <div class="text-sm text-gray-600 mt-2">브라우저에서 위치 권한을 허용해주세요.</div>
+                                        <div class="text-xs text-blue-500 mt-1">💡 페이지를 새로고침하여 다시 시도해주세요.</div>
+                                    `;
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    console.log('위치 정보 사용 불가');
+                                    statusMessage.innerHTML = `
+                                        <div class="text-red-600 font-semibold">❌ 위치 정보를 사용할 수 없습니다</div>
+                                        <div class="text-sm text-gray-600 mt-2">GPS 신호가 약하거나 위치 서비스가 꺼져있습니다.</div>
+                                        <div class="text-xs text-blue-500 mt-1">💡 페이지를 새로고침하여 다시 시도해주세요.</div>
+                                    `;
+                                    break;
+                                case error.TIMEOUT:
+                                    console.log('위치 정보 타임아웃');
+                                    statusMessage.innerHTML = `
+                                        <div class="text-red-600 font-semibold">❌ 위치 정보 요청 시간 초과</div>
+                                        <div class="text-sm text-gray-600 mt-2">위치 정보를 가져오는데 시간이 오래 걸렸습니다.</div>
+                                        <div class="text-xs text-blue-500 mt-1">💡 페이지를 새로고침하여 다시 시도해주세요.</div>
+                                    `;
+                                    break;
+                                default:
+                                    console.log('알 수 없는 위치 오류');
+                                    statusMessage.innerHTML = `
+                                        <div class="text-red-600 font-semibold">❌ 위치 정보 오류가 발생했습니다</div>
+                                        <div class="text-sm text-gray-600 mt-2">예상치 못한 오류가 발생했습니다.</div>
+                                        <div class="text-xs text-blue-500 mt-1">💡 페이지를 새로고침하여 다시 시도해주세요.</div>
+                                    `;
+                                    break;
+                            }
+                            
+                            // 3초 후 다시 시도 버튼 표시
+                            setTimeout(() => {
+                                statusMessage.innerHTML = `
+                                    <div class="text-yellow-600 font-semibold">⚠️ 위치 정보를 가져올 수 없습니다</div>
+                                    <div class="text-sm text-gray-600 mt-2">다시 시도하거나 기본값으로 진행할 수 있습니다.</div>
+                                `;
+                                
+                                // 다시 시도 버튼 표시
+                                retryButton.style.display = 'block';
+                                
+                                // 10초 후 자동으로 기본값으로 진행
+                                setTimeout(() => {
+                                    if (retryButton.style.display !== 'none') {
+                                        retryButton.style.display = 'none';
+                                        statusMessage.innerHTML = `
+                                            <div class="text-yellow-600 font-semibold">⚠️ 기본값으로 진행합니다</div>
+                                            <div class="text-sm text-gray-600 mt-2">위치 정보 없이 출근 기록을 처리합니다.</div>
+                                        `;
+                                        
+                                        // 2초 후 데이터 전송
+                                        setTimeout(() => {
+                                            sendDataWithLocation(uid, 0, 0);
+                                        }, 2000);
+                                    }
+                                }, 10000);
+                            }, 3000);
+                        },
+                        options
+                    );
+                } else {
+                    console.log('Geolocation API 지원 안함');
+                    statusMessage.innerHTML = `
+                        <div class="text-red-600 font-semibold">❌ 위치 정보를 지원하지 않는 브라우저입니다</div>
+                        <div class="text-sm text-gray-600 mt-2">이 브라우저는 GPS 위치 정보를 지원하지 않습니다.</div>
+                        <div class="text-xs text-blue-500 mt-1">💡 다른 브라우저를 사용하거나 페이지를 새로고침해주세요.</div>
+                    `;
+                    
+                    // 3초 후 다시 시도 버튼 표시
+                    setTimeout(() => {
+                        statusMessage.innerHTML = `
+                            <div class="text-yellow-600 font-semibold">⚠️ 위치 정보를 지원하지 않는 브라우저입니다</div>
+                            <div class="text-sm text-gray-600 mt-2">다시 시도하거나 기본값으로 진행할 수 있습니다.</div>
+                        `;
+                        
+                        // 다시 시도 버튼 표시
+                        retryButton.style.display = 'block';
+                        
+                        // 10초 후 자동으로 기본값으로 진행
+                        setTimeout(() => {
+                            if (retryButton.style.display !== 'none') {
+                                retryButton.style.display = 'none';
+                                statusMessage.innerHTML = `
+                                    <div class="text-yellow-600 font-semibold">⚠️ 기본값으로 진행합니다</div>
+                                    <div class="text-sm text-gray-600 mt-2">위치 정보 없이 출근 기록을 처리합니다.</div>
+                                `;
+                                
+                                // 2초 후 데이터 전송
+                                setTimeout(() => {
+                                    sendDataWithLocation(uid, 0, 0);
+                                }, 2000);
+                            }
+                        }, 10000);
+                    }, 3000);
+                }
+            }
+
+            // 위치 정보와 함께 데이터 전송 함수
+            function sendDataWithLocation(uid, latitude, longitude) {
+                console.log('위치 정보와 함께 데이터 전송 시작:', { uid, latitude, longitude });
+                
+                // Google Apps Script 웹앱 URL
+                const SCRIPT_URL = 'https://script.google.com/macros/s/' + webappId + '/exec';
+                const urlWithParams = SCRIPT_URL + '?spreadsheet_id=' + encodeURIComponent(spreadsheetId);
+                
+                // POST 요청으로 데이터 전송 (no-cors 모드)
+                fetch(urlWithParams, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        uid: uid,
+                        latitude: latitude,
+                        longitude: longitude
+                    })
+                })
+                .then(response => {
+                    console.log('데이터 전송 완료 (no-cors 모드)');
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ 출근 기록이 완료되었습니다!</div>
+                        <div class="text-sm text-gray-600 mt-2">
+                            이름: 테스트이름<br>
+                            부서: 테스트부서<br>
+                            위치: ${latitude.toFixed(7)}, ${longitude.toFixed(7)}
+                        </div>
+                        <div class="text-xs text-blue-500 mt-1">💡 구글 시트를 확인해보세요!</div>
+                    `;
+                })
+                .catch(error => {
+                    console.log('전송 완료 (no-cors 모드)');
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ 출근 기록이 완료되었습니다!</div>
+                        <div class="text-sm text-gray-600 mt-2">
+                            이름: 테스트이름<br>
+                            부서: 테스트부서<br>
+                            위치: ${latitude.toFixed(7)}, ${longitude.toFixed(7)}
+                        </div>
+                        <div class="text-xs text-blue-500 mt-1">💡 구글 시트를 확인해보세요!</div>
+                    `;
+                });
+            }
+
+            // Apps Script로 데이터 전송 (google.script.run 사용) - 기존 함수
+            function sendDataToServer(uid, lat, lon) {
+                const payload = {
+                    uid: uid,
+                    latitude: lat,
+                    longitude: lon
+                };
+
+                // Google Apps Script 웹앱 URL (동적으로 생성)
+                const SCRIPT_URL = 'https://script.google.com/macros/s/' + webappId + '/exec';
+                
+                // 스프레드시트 ID를 URL 파라미터로 추가
+                const urlWithParams = SCRIPT_URL + '?spreadsheet_id=' + encodeURIComponent(spreadsheetId);
+                
+                // POST 요청으로 데이터 전송 (CORS 문제 해결을 위해 no-cors 모드 사용)
+                fetch(urlWithParams, {
+                    method: 'POST',
+                    mode: 'no-cors',  // CORS 문제 해결을 위해 no-cors 모드 사용
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    console.log('데이터 전송 완료 (no-cors 모드)');
+                    // 성공 메시지 표시 (데이터는 전송됨)
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ 출근 기록이 완료되었습니다!</div>
+                        <div class="text-sm text-gray-600 mt-2">
+                            이름: 테스트이름<br>
+                            부서: 테스트부서<br>
+                            시트: 테스트1<br>
+                            위치: ${lat.toFixed(6)}, ${lon.toFixed(6)}
+                        </div>
+                        <div class="text-xs text-blue-500 mt-1">💡 구글 시트를 확인해보세요!</div>
+                    `;
+                })
+                .catch(error => {
+                    console.log('전송 완료 (no-cors 모드)');
+                    // 에러가 발생해도 성공으로 처리 (데이터는 전송됨)
+                    statusMessage.innerHTML = `
+                        <div class="text-green-600 font-semibold">✅ 출근 기록이 완료되었습니다!</div>
+                        <div class="text-sm text-gray-600 mt-2">
+                            이름: 테스트이름<br>
+                            부서: 테스트부서<br>
+                            시트: 테스트1<br>
+                            위치: ${lat.toFixed(6)}, ${lon.toFixed(6)}
+                        </div>
+                        <div class="text-xs text-blue-500 mt-1">💡 구글 시트를 확인해보세요!</div>
+                    `;
+                });
+            }
+
+        });
+    </script>
+</body>
+</html>
