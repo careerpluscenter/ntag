@@ -29,7 +29,6 @@ const SHEET_NAME = "timetable";
 function doGet(e) {
     // 1. 파라미터 수신
     const encryptedData = e.parameter.data || e.parameter.p;
-    const cmac = e.parameter.cmac || ""; // CMAC 파라미터 추가
 
     if (!encryptedData) {
         return renderPage("오류", "잘못된 접근입니다. NFC 태그를 통해 접속해주세요.", "error");
@@ -42,7 +41,7 @@ function doGet(e) {
         const counter = decryptedInfo.counter;
 
         // 3. 데이터 검증 및 저장
-        const result = processAttendance(uid, counter, cmac);
+        const result = processAttendance(uid, counter);
 
         if (result.success) {
             return renderPage("출근 완료", `안녕하세요, ${uid}님!\n출근이 등록되었습니다.\n(인증회차: ${counter})`, "success");
@@ -91,7 +90,7 @@ function decryptNTAG424(encryptedHex, keyHex) {
 
 
 // 시트 저장 및 중복 검사 로직 (하이브리드 방식: 캐시 + 시트)
-function processAttendance(uid, counter, cmac) {
+function processAttendance(uid, counter) {
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(5000)) {
         return { success: false, message: "서버가 혼잡합니다. 잠시 후 다시 시도해주세요." };
@@ -124,8 +123,8 @@ function processAttendance(uid, counter, cmac) {
         const timestamp = new Date();
         const key = Utilities.getUuid();
 
-        // 시트 열 구조: A(key), B(uid), C(counter), D(timestamp), E(cmac)
-        sheet.appendRow([key, uid, counter, timestamp, cmac]);
+        // 시트 열 구조: key, id, counter, timestamp
+        sheet.appendRow([key, uid, counter, timestamp]);
 
         // 5. 캐시 업데이트 (다음번 태그 시 시트 검색 없이 바로 처리됨)
         scriptProperties.setProperty(lastCounterKey, String(counter));

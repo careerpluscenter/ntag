@@ -1,106 +1,98 @@
 <!DOCTYPE html>
 <html>
-
-<head>
+  <head>
     <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>근태 체크</title>
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f8f9fa;
-            color: #333;
-        }
+      /* 기본 스타일 초기화 */
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      
+      body {
+        font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+        background-color: #f4f6f8;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        color: #333;
+      }
 
-        .card {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            max-width: 80%;
-            width: 320px;
-        }
+      /* 카드 디자인 */
+      .card {
+        background: white;
+        width: 90%;
+        max-width: 400px;
+        padding: 40px 20px;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        text-align: center;
+      }
 
-        .icon {
-            font-size: 60px;
-            margin-bottom: 20px;
-        }
+      /* 아이콘 영역 */
+      .icon-box {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 40px;
+      }
 
-        h1 {
-            font-size: 24px;
-            margin: 0 0 10px 0;
-        }
+      /* 상태별 색상 설정 (성공/경고/에러) */
+      .success { background-color: #e8f5e9; color: #2ecc71; }
+      .warning { background-color: #fff3e0; color: #f39c12; }
+      .error   { background-color: #fce4ec; color: #e74c3c; }
 
-        p {
-            font-size: 16px;
-            color: #666;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            /* 줄바꿈 처리 */
-        }
+      /* 텍스트 스타일 */
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+        font-weight: 700;
+      }
 
-        .success {
-            color: #28a745;
-        }
+      p {
+        font-size: 1rem;
+        line-height: 1.6;
+        color: #555;
+        white-space: pre-line; /* 줄바꿈(\n)을 인식하게 함 */
+      }
 
-        .error {
-            color: #dc3545;
-        }
-
-        .warning {
-            color: #ffc107;
-        }
-
-        /* 타입별 아이콘 및 색상 설정 */
-        .type-success .icon {
-            color: #28a745;
-        }
-
-        .type-error .icon {
-            color: #dc3545;
-        }
-
-        .type-warning .icon {
-            color: #ffa000;
-        }
-
-        button {
-            margin-top: 30px;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            background-color: #4a90e2;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
+      /* 하단 푸터 */
+      .footer {
+        margin-top: 30px;
+        font-size: 0.8rem;
+        color: #aaa;
+      }
     </style>
-</head>
-
-<body class="type-<?= type ?>">
+  </head>
+  <body>
+    
     <div class="card">
-        <div class="icon">
-            <? if (type === 'success') { ?>
-            ✅
-            <? } else if (type === 'error') { ?>
-            ⛔
-            <? } else { ?>
-            ⚠️
-            <? } ?>
-        </div>
-        <h1>
-            <?= title ?>
-        </h1>
-        <p>
-            <?= message ?>
-        </p>
-        <button onclick="window.close()">창 닫기</button>
-    </div>
-</body>
+      <!-- 1. 상태에 따른 아이콘 표시 -->
+      <div class="icon-box <?= type ?>">
+        <? if (type == 'success') { ?>
+          ✔
+        <? } else if (type == 'warning') { ?>
+          !
+        <? } else { ?>
+          ✕
+        <? } ?>
+      </div>
 
+      <!-- 2. 제목 출력 -->
+      <h1><?= title ?></h1>
+
+      <!-- 3. 메시지 출력 -->
+      <p><?= message ?></p>
+
+      <div class="footer">
+        NTAG 424 DNA Attendance System
+      </div>
+    </div>
+
+  </body>
 </html>
